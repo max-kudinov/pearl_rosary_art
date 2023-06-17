@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <FastLED.h>
 
-#define NUM_LEDS 11
+#define NUM_LEDS 111
 #define NUM_SPHERES 36
 #define LEDS_PER_SPHERE 3
 #define BRIGHTNESS 150
