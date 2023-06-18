@@ -5,13 +5,14 @@
 #define NUM_SPHERES 19
 #define LEDS_PER_SPHERE 3
 #define MANUAL_BRIGHTNESS 200
-#define AUTO_BRIGHTNESS 100
+#define AUTO_BRIGHTNESS 255
+#define INACTIVE_BRIGHTNESS_DIFFERENCE 200
 #define PEARL_DELAY 20
 #define FIRE_DELAY 30
 // #define IDLE_TIMEOUT 600000
 #define IDLE_TIMEOUT 10000
 // #define NEW_SPHERE_PERIOD 25 * 1000
-#define NEW_SPHERE_PERIOD 5000
+#define NEW_SPHERE_PERIOD 6000
 #define STRIP_PIN A0
 #define BUTTON_PIN A1
 
@@ -54,7 +55,7 @@ unsigned long previousPearlUpdate = 0;
 unsigned long previousFireUpdate = 0;
 unsigned long previousSphere = 0;
 
-bool autoMode = false;
+bool autoMode = true;
 
 CRGB currentColor1;
 CRGB currentColor2;
@@ -79,6 +80,7 @@ void reset();
 void newSphere();
 void blackout();
 void changeBrightness(int currentBrightness, int finalBrightness);
+void smoothBrightness();
 
 void setup() {
 	FastLED.addLeds<WS2811, STRIP_PIN, GRB>(leds, NUM_LEDS);
@@ -110,7 +112,6 @@ void loop() {
 	}
 
 	checkButton();
-	Serial.println(autoMode);
 
 	// for(int i = 0; i < NUM_LEDS; i++) {
 	// 	leds[i] = CRGB::White;
@@ -132,8 +133,11 @@ void mainAnimation() {
 		else {
 		if(i < activeSpheres * LEDS_PER_SPHERE) j = 1;
 		leds[i] = blend(colors[circle+j][shift%3], colors[circle+j][(shift+1)%3], colorBlend);
+		leds[i] = blend(leds[i], CRGB::Black, j == 1 ? 0 : INACTIVE_BRIGHTNESS_DIFFERENCE);
 		leds[i+1] = blend(colors[circle+j][(shift+1)%3], colors[circle+j][(shift+2)%3], colorBlend);
+		leds[i+1] = blend(leds[i+1], CRGB::Black, j == 1 ? 0 : INACTIVE_BRIGHTNESS_DIFFERENCE);
 		leds[i+2] = blend(colors[circle+j][(shift+2)%3], colors[circle+j][shift%3], colorBlend);
+		leds[i+2] = blend(leds[i+2], CRGB::Black, j == 1 ? 0 : INACTIVE_BRIGHTNESS_DIFFERENCE);
 		}
 	}
 	FastLED.show();
@@ -181,8 +185,11 @@ void startup() {
 	for(int i = 0; i < 255; i++) {
 		for(int j = 0; j < NUM_LEDS - LEDS_PER_SPHERE; j += LEDS_PER_SPHERE) {
 			leds[j] = blend(CRGB::Black, colors[circle][0], i);
+			leds[j] = blend(leds[j], CRGB::Black, INACTIVE_BRIGHTNESS_DIFFERENCE);
 			leds[j+1] = blend(CRGB::Black, colors[circle][1], i);
+			leds[j+1] = blend(leds[j+1], CRGB::Black, INACTIVE_BRIGHTNESS_DIFFERENCE);
 			leds[j+2] = blend(CRGB::Black, colors[circle][2], i);
+			leds[j+2] = blend(leds[j+2], CRGB::Black, INACTIVE_BRIGHTNESS_DIFFERENCE);
 		}
 		FastLED.show();
 		delay(5);
@@ -204,6 +211,7 @@ void newSphere() {
 		currentColor1 = leds[0];
 		currentColor2 = leds[1];
 		currentColor3 = leds[2];
+		smoothBrightness();
 		if(circle == 8) reset();
 	}
 }
@@ -247,5 +255,17 @@ void changeBrightness(int currentBrightness, int finalBrightness) {
 			FastLED.show();
 			delay(10);
 		}
+	}
+}
+
+void smoothBrightness() {
+	for(int i = 0; i < INACTIVE_BRIGHTNESS_DIFFERENCE; i++) {
+		for(int k = 0; k < NUM_LEDS - LEDS_PER_SPHERE; k += 3) {
+			leds[k] = blend(currentColor1, CRGB::Black, i);
+			leds[k+1] = blend(currentColor2, CRGB::Black, i);
+			leds[k+2] = blend(currentColor3, CRGB::Black, i);
+		}
+		FastLED.show();
+		delay(5);
 	}
 }
