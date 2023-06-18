@@ -1,6 +1,9 @@
 # Pearl Mala
 This is the code for the Pearl Mala installation art project.
 
+## This is development branch
+It might be unstable or not working at all. Don't use unless you're me.
+
 ## Requirements
 [FastLed library](https://github.com/FastLED/FastLED) is required for this program. Install it via your library manager.
 
