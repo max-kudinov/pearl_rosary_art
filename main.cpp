@@ -1,24 +1,22 @@
 #include <Arduino.h>
 #include <FastLED.h>
 
-#define NUM_LEDS 60
-#define NUM_SPHERES 19
+#define NUM_LEDS 111
+#define NUM_SPHERES 36
 #define LEDS_PER_SPHERE 3
-#define MANUAL_BRIGHTNESS 200
-#define AUTO_BRIGHTNESS 255
-#define INACTIVE_BRIGHTNESS_DIFFERENCE 200
+#define MANUAL_BRIGHTNESS 200					// яркость в режиме с кнопкой
+#define AUTO_BRIGHTNESS 255						// яркость в автоматическом режиме
+#define INACTIVE_BRIGHTNESS_DIFFERENCE 200	 	// разница между яркостью активных и неактивных жемчужин (0 - разницы нет, 255 - неактивные не горят)
 #define PEARL_DELAY 20
 #define FIRE_DELAY 30
-// #define IDLE_TIMEOUT 600000
-#define IDLE_TIMEOUT 10000
-// #define NEW_SPHERE_PERIOD 25 * 1000
-#define NEW_SPHERE_PERIOD 6000
+#define IDLE_TIMEOUT 10000						// время в миллисекундах, после которого включается автоматический режим
+#define NEW_SPHERE_PERIOD 6000					// вермя в миллисекундах, после которого загорается новая активная сфера
 #define STRIP_PIN A0
 #define BUTTON_PIN A1
 
 CRGB leds[NUM_LEDS];
 
-// For testing
+// Цвета для теста
 
 CRGB colors[8][3] =	{{{255, 0, 0}, {0, 0, 0}, {0, 0, 0}},				//idle
 					{{0, 0, 0}, {0, 255, 0}, {0, 0, 0}},				//1
@@ -29,14 +27,7 @@ CRGB colors[8][3] =	{{{255, 0, 0}, {0, 0, 0}, {0, 0, 0}},				//idle
 					{{255, 102, 204}, {153, 255, 255}, {255, 255, 217}},		//6	
 					{{255, 255, 11}, {153, 255, 255}, {255, 255, 217}}};		//7
 
-// CRGB colors[8][3] =	{{{255, 0, 0}, {255, 0, 0}, {255, 0, 0}},				//idle
-// 					{{0, 255, 0}, {0, 255, 0}, {0, 255, 0}},				//1
-// 					{{0, 0, 255}, {0, 0, 0}, {0, 0, 0}},			//2
-// 					{{102, 204, 102}, {204, 255, 51}, {255, 225, 11}},			//3
-// 					{{255, 225, 11}, {255, 153, 0}, {255, 51, 51}},				//4
-// 					{{255, 153, 0}, {255, 51, 51}, {255, 102, 204}},			//5
-// 					{{255, 102, 204}, {153, 255, 255}, {255, 255, 217}},		//6	
-// 					{{255, 255, 11}, {153, 255, 255}, {255, 255, 217}}};		//7
+// Цвета Насти:
 
 // CRGB colors[8][3]= {{{0, 51, 204}, {51, 0, 153}, {153, 51, 204}},				//idle
 // 							{{0, 51, 204}, {153, 51, 204}, {51, 204, 204}},				//1
@@ -55,7 +46,7 @@ unsigned long previousPearlUpdate = 0;
 unsigned long previousFireUpdate = 0;
 unsigned long previousSphere = 0;
 
-bool autoMode = true;
+bool autoMode = false;
 
 CRGB currentColor1;
 CRGB currentColor2;
@@ -87,7 +78,6 @@ void setup() {
 	FastLED.setBrightness(MANUAL_BRIGHTNESS);
 	pinMode(BUTTON_PIN, INPUT_PULLUP);
 	startup();
-	Serial.begin(9600);
 }
 
 void loop() {
@@ -112,11 +102,6 @@ void loop() {
 	}
 
 	checkButton();
-
-	// for(int i = 0; i < NUM_LEDS; i++) {
-	// 	leds[i] = CRGB::White;
-	// 	FastLED.show();
-	// }
 }
 
 void mainAnimation() {
