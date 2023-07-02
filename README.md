@@ -1,5 +1,5 @@
-# Pearl Mala
-This is the code for the Pearl Mala installation art project.
+# Pearl Rosary Art
+This is the code for the Pearl Rosary installation art project.
 
 ## This is development branch
 It might be unstable or not working at all. Don't use unless you're me.
