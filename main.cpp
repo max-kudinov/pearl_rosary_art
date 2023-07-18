@@ -4,8 +4,9 @@
 #define NUM_LEDS 60
 #define NUM_SPHERES 19
 #define LEDS_PER_SPHERE 3
-#define MANUAL_BRIGHTNESS 200
+#define MANUAL_BRIGHTNESS 50
 #define AUTO_BRIGHTNESS 255
+#define BRIGHTNESS_DELAY 10 
 #define INACTIVE_BRIGHTNESS_DIFFERENCE 200
 #define PEARL_DELAY 20
 #define FIRE_DELAY 30
@@ -54,8 +55,10 @@ unsigned long previousPress = 0;
 unsigned long previousPearlUpdate = 0;
 unsigned long previousFireUpdate = 0;
 unsigned long previousSphere = 0;
+unsigned long previousBrightnessCheck = 0;
 
 bool autoMode = false;
+int globalBrightness = MANUAL_BRIGHTNESS;
 
 CRGB currentColor1;
 CRGB currentColor2;
@@ -79,7 +82,7 @@ void autoplay();
 void reset();
 void newSphere();
 void blackout();
-void changeBrightness(int currentBrightness, int finalBrightness);
+void changeBrightness();
 void smoothBrightness();
 void setBrightness(int index, int isActive);
 
@@ -94,7 +97,6 @@ void setup() {
 void loop() {
 	if(!autoMode && millis() - previousPress > IDLE_TIMEOUT) {
 		autoMode = true;
-		changeBrightness(MANUAL_BRIGHTNESS, AUTO_BRIGHTNESS);
 		reset();
 	}
 
@@ -110,6 +112,11 @@ void loop() {
 	if(millis() - previousFireUpdate > FIRE_DELAY){
 		fireAnimation();
 		previousFireUpdate = millis();
+	}
+
+	if(millis() - previousBrightnessCheck > BRIGHTNESS_DELAY) {
+		changeBrightness();
+		previousBrightnessCheck = millis();
 	}
 
 	checkButton();
@@ -145,23 +152,6 @@ void mainAnimation() {
 	FastLED.show();
 }
 
-void setBrightness(int index, int isActive) {
-	if(isActive == 1) leds[index] = blend(leds[index], CRGB::Black, 0);
-	else leds[index] = blend(leds[index], CRGB::Black, INACTIVE_BRIGHTNESS_DIFFERENCE);
-}
-
-void checkButton() {
-	if(millis() - previousPress > 250 && !digitalRead(BUTTON_PIN)){
-		if(autoMode) {
-			autoMode = false;
-			changeBrightness(AUTO_BRIGHTNESS, MANUAL_BRIGHTNESS);
-			reset();
-		}
-		else newSphere();
-		previousPress = millis();
-	}
-}
-
 void fireAnimation() {
 	fireColorBlend += 8;
 	if(fireColorBlend == 0) fireShift++;
@@ -170,6 +160,11 @@ void fireAnimation() {
 		CRGB color2 = fireColors[(fireShift + j + 1) % 3];
 		leds[NUM_LEDS - LEDS_PER_SPHERE + j] = blend(color1, color2, fireColorBlend);
 	}
+}
+
+void setBrightness(int index, int isActive) {
+	if(isActive == 1) leds[index] = blend(leds[index], CRGB::Black, 0);
+	else leds[index] = blend(leds[index], CRGB::Black, INACTIVE_BRIGHTNESS_DIFFERENCE);
 }
 
 void finalAnimation() {
@@ -241,23 +236,16 @@ void blackout() {
 	}
 }
 
-void changeBrightness(int currentBrightness, int finalBrightness) {
-	if(currentBrightness < finalBrightness) {
-		while(currentBrightness != finalBrightness) {
-			currentBrightness++;
-			FastLED.setBrightness(currentBrightness);
-			FastLED.show();
-			delay(10);
-		}
+void changeBrightness() {
+	if(autoMode && globalBrightness != AUTO_BRIGHTNESS) {
+		if (globalBrightness > AUTO_BRIGHTNESS) globalBrightness--;
+		else if (globalBrightness < AUTO_BRIGHTNESS) globalBrightness++;
 	}
-	else {
-		while(currentBrightness != finalBrightness) {
-			currentBrightness--;
-			FastLED.setBrightness(currentBrightness);
-			FastLED.show();
-			delay(10);
-		}
+	if(!autoMode && globalBrightness != MANUAL_BRIGHTNESS) {
+		if (globalBrightness > MANUAL_BRIGHTNESS) globalBrightness--;
+		else if (globalBrightness < MANUAL_BRIGHTNESS) globalBrightness++;
 	}
+	FastLED.setBrightness(globalBrightness);
 }
 
 void smoothBrightness() {
@@ -269,5 +257,16 @@ void smoothBrightness() {
 		}
 		FastLED.show();
 		delay(5);
+	}
+}
+
+void checkButton() {
+	if(millis() - previousPress > 250 && !digitalRead(BUTTON_PIN)){
+		if(autoMode) {
+			autoMode = false;
+			reset();
+		}
+		else newSphere();
+		previousPress = millis();
 	}
 }
