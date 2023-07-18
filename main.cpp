@@ -121,7 +121,8 @@ void loop() {
 }
 
 void mainAnimation() {
-	colorBlend += 5;
+	colorBlend += 8;
+	if(colorBlend == 0) shift++;
 	for(int i = 0; i < (NUM_LEDS - LEDS_PER_SPHERE); i += LEDS_PER_SPHERE) {
 		int isActive = 0;
 		if(colorBlendActive < 255 && (activeSpheres-1) * LEDS_PER_SPHERE == i) {
@@ -129,7 +130,7 @@ void mainAnimation() {
 				leds[i + j] = blend(currentColor1, colors[circle+1][j], colorBlendActive);
 			}
 			if(colorBlendActive < 252) colorBlendActive += 6;
-			else if(shift % 3 == 0 && colorBlend == 5) colorBlendActive += 3;
+			else if(shift % 3 == 0 && colorBlend == 0) colorBlendActive += 3;
 		} 
 		else {
 			if(i < activeSpheres * LEDS_PER_SPHERE) isActive = 1;
@@ -142,10 +143,6 @@ void mainAnimation() {
 		}
 	}
 	FastLED.show();
-	if(colorBlend == 255) {
-		shift++;
-		colorBlend = 0;
-	}
 }
 
 void setBrightness(int index, int isActive) {
@@ -166,13 +163,12 @@ void checkButton() {
 }
 
 void fireAnimation() {
-	fireColorBlend += 5;
-	leds[NUM_LEDS-LEDS_PER_SPHERE] = blend(fireColors[fireShift%3], fireColors[(fireShift+1)%3], fireColorBlend);
-	leds[NUM_LEDS-LEDS_PER_SPHERE+1] = blend(fireColors[(fireShift+1)%3], fireColors[(fireShift+2)%3], fireColorBlend);
-	leds[NUM_LEDS-LEDS_PER_SPHERE+2] = blend(fireColors[(fireShift+2)%3], fireColors[fireShift%3], fireColorBlend);
-	if(fireColorBlend == 255) {
-		fireShift++;
-		fireColorBlend = 0;
+	fireColorBlend += 8;
+	if(fireColorBlend == 0) fireShift++;
+	for(int j = 0; j < 3; j++) {
+		CRGB color1 = fireColors[(fireShift + j) % 3];
+		CRGB color2 = fireColors[(fireShift + j + 1) % 3];
+		leds[NUM_LEDS - LEDS_PER_SPHERE + j] = blend(color1, color2, fireColorBlend);
 	}
 }
 
