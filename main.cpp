@@ -4,11 +4,11 @@
 #define NUM_LEDS 60
 #define NUM_SPHERES 19
 #define LEDS_PER_SPHERE 3
-#define MANUAL_BRIGHTNESS 50
-#define AUTO_BRIGHTNESS 255
+#define MANUAL_BRIGHTNESS 255
+#define AUTO_BRIGHTNESS 200
 #define BRIGHTNESS_DELAY 10 
 #define INACTIVE_BRIGHTNESS_DIFFERENCE 200
-#define PEARL_DELAY 20
+#define PEARL_DELAY 200
 #define FIRE_DELAY 30
 // #define IDLE_TIMEOUT 600000
 #define IDLE_TIMEOUT 10000
@@ -58,15 +58,14 @@ unsigned long previousSphere = 0;
 unsigned long previousBrightnessCheck = 0;
 
 bool autoMode = false;
+bool transition = false;
 int globalBrightness = MANUAL_BRIGHTNESS;
 
-CRGB currentColor1;
-CRGB currentColor2;
-CRGB currentColor3;
+CRGB currentColor[3];
 
-uint8_t colorBlend = 0;
+uint8_t colorBlend[NUM_SPHERES];
 uint8_t colorBlendActive = 0;
-uint8_t shift = 0;
+uint8_t shift [NUM_SPHERES];
 uint8_t fireColorBlend = 0;
 uint8_t fireShift = 0;
 
@@ -77,7 +76,7 @@ void mainAnimation();
 void checkButton();
 void finalAnimation();
 void fireAnimation();
-void startup();
+// void startup();
 void autoplay();
 void reset();
 void newSphere();
@@ -85,12 +84,15 @@ void blackout();
 void changeBrightness();
 void smoothBrightness();
 void setBrightness(int index, int isActive);
+void createRandStates();
 
 void setup() {
+	randomSeed(analogRead(A5));
+	createRandStates();
 	FastLED.addLeds<WS2811, STRIP_PIN, GRB>(leds, NUM_LEDS);
 	FastLED.setBrightness(MANUAL_BRIGHTNESS);
 	pinMode(BUTTON_PIN, INPUT_PULLUP);
-	startup();
+	// startup();
 	Serial.begin(9600);
 }
 
@@ -128,23 +130,34 @@ void loop() {
 }
 
 void mainAnimation() {
-	colorBlend += 8;
-	if(colorBlend == 0) shift++;
+	for(int i = 0; i < NUM_SPHERES; i++) {
+		if(!(i == activeSpheres - 1 && transition)) {
+			colorBlend[i] += 8;
+			if (colorBlend[i] == 0) shift[i]++;
+		}
+	}
+
 	for(int i = 0; i < (NUM_LEDS - LEDS_PER_SPHERE); i += LEDS_PER_SPHERE) {
+		int currentShift = shift[i / LEDS_PER_SPHERE];
+		int currentBlend = colorBlend[i / LEDS_PER_SPHERE];
 		int isActive = 0;
-		if(colorBlendActive < 255 && (activeSpheres-1) * LEDS_PER_SPHERE == i) {
+		if((activeSpheres-1) * LEDS_PER_SPHERE == i && transition) {
 			for(int j = 0; j < 3; j++) {
-				leds[i + j] = blend(currentColor1, colors[circle+1][j], colorBlendActive);
+				leds[i + j] = blend(currentColor[j], colors[circle+1][(currentShift + j)%3], colorBlendActive);
 			}
-			if(colorBlendActive < 252) colorBlendActive += 6;
-			else if(shift % 3 == 0 && colorBlend == 0) colorBlendActive += 3;
+			if (colorBlendActive < currentBlend) colorBlendActive += 8;
+			else transition = false;
+			Serial.print(colorBlendActive);
+			Serial.print(" ");
+			Serial.print(currentBlend);
+			Serial.println();
 		} 
 		else {
 			if(i < activeSpheres * LEDS_PER_SPHERE) isActive = 1;
 			for(int j = 0; j < 3; j++) {
-				CRGB color1 = colors[circle + isActive][(shift + j) % 3];
-				CRGB color2 = colors[circle + isActive][(shift+ j + 1) % 3];
-				leds[i + j] = blend(color1, color2, colorBlend);
+				CRGB color1 = colors[circle + isActive][(currentShift + j) % 3];
+				CRGB color2 = colors[circle + isActive][(currentShift+ j + 1) % 3];
+				leds[i + j] = blend(color1, color2, currentBlend);
 				setBrightness(i + j, isActive);
 			}
 		}
@@ -174,40 +187,41 @@ void finalAnimation() {
 		delay(20);
 	}
 	blackout();
-	startup();
+	// startup();
 }
 
-void startup() {
-	fireAnimation();
-	for(int i = 0; i < 255; i++) {
-		for(int j = 0; j < NUM_LEDS - LEDS_PER_SPHERE; j += LEDS_PER_SPHERE) {
-			leds[j] = blend(CRGB::Black, colors[circle][0], i);
-			leds[j+1] = blend(CRGB::Black, colors[circle][1], i);
-			leds[j+2] = blend(CRGB::Black, colors[circle][2], i);
-			setBrightness(j, 0);
-			setBrightness(j + 1, 0);
-			setBrightness(j + 2, 0);
-		}
-		FastLED.show();
-		delay(5);
-	}
-}
+// void startup() {
+// 	fireAnimation();
+// 	for(int i = 0; i < 255; i++) {
+// 		for(int j = 0; j < NUM_LEDS - LEDS_PER_SPHERE; j += LEDS_PER_SPHERE) {
+// 			leds[j] = blend(CRGB::Black, colors[circle][0], i);
+// 			leds[j+1] = blend(CRGB::Black, colors[circle][1], i);
+// 			leds[j+2] = blend(CRGB::Black, colors[circle][2], i);
+// 			setBrightness(j, 0);
+// 			setBrightness(j + 1, 0);
+// 			setBrightness(j + 2, 0);
+// 		}
+// 		FastLED.show();
+// 		delay(5);
+// 	}
+// }
 
 void newSphere() {
 	activeSpheres++;
 
-	currentColor1 = leds[(activeSpheres-1) * LEDS_PER_SPHERE];
-	currentColor2 = leds[(activeSpheres-1) * LEDS_PER_SPHERE+1];
-	currentColor3 = leds[(activeSpheres-1) * LEDS_PER_SPHERE+2];
+	for(int i = 0; i < 3; i++) {
+		currentColor[i] = leds[(activeSpheres-1) * LEDS_PER_SPHERE + i];
+	}
 
 	colorBlendActive = 0;
+	transition = true;
 
 	if(activeSpheres == NUM_SPHERES + 1) {
 		activeSpheres = 1;
 		circle++;
-		currentColor1 = leds[0];
-		currentColor2 = leds[1];
-		currentColor3 = leds[2];
+		for(int i = 0; i < 3; i++) {
+			currentColor[i] = leds[i];
+		}
 		smoothBrightness();
 		if(circle == 8) reset();
 	}
@@ -221,8 +235,6 @@ void autoplay() {
 }
 
 void reset() {
-	shift = 0;
-	colorBlend = 0;
 	circle = 0;
 	activeSpheres = 0;
 	finalAnimation();
@@ -250,10 +262,10 @@ void changeBrightness() {
 
 void smoothBrightness() {
 	for(int i = 0; i < INACTIVE_BRIGHTNESS_DIFFERENCE; i++) {
-		for(int k = 0; k < NUM_LEDS - LEDS_PER_SPHERE; k += 3) {
-			leds[k] = blend(currentColor1, CRGB::Black, i);
-			leds[k+1] = blend(currentColor2, CRGB::Black, i);
-			leds[k+2] = blend(currentColor3, CRGB::Black, i);
+		for(int j = 0; j < NUM_LEDS - LEDS_PER_SPHERE; j += 3) {
+			for(int k = 0; k < 3; k++) {
+				leds[j + k] = blend(currentColor[k], CRGB::Black, i);
+			}
 		}
 		FastLED.show();
 		delay(5);
@@ -268,5 +280,12 @@ void checkButton() {
 		}
 		else newSphere();
 		previousPress = millis();
+	}
+}
+
+void createRandStates() {
+	for(int i = 0; i < NUM_SPHERES; i++) {
+		colorBlend[i] = random(0, 32) * 8;
+		shift[i] = random(0, 3);
 	}
 }
