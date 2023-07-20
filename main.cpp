@@ -59,12 +59,13 @@ unsigned long previousBrightnessCheck = 0;
 
 bool autoMode = false;
 bool transition = false;
+bool descending = false;
 int globalBrightness = MANUAL_BRIGHTNESS;
 
 CRGB currentColor[3];
 
 uint8_t colorBlend[NUM_SPHERES];
-uint8_t colorBlendActive = 0;
+uint8_t transitionBrightness = 0;
 uint8_t shift [NUM_SPHERES];
 uint8_t fireColorBlend = 0;
 uint8_t fireShift = 0;
@@ -131,36 +132,35 @@ void loop() {
 
 void mainAnimation() {
 	for(int i = 0; i < NUM_SPHERES; i++) {
-		if(!(i == activeSpheres - 1 && transition)) {
-			colorBlend[i] += 8;
-			if (colorBlend[i] == 0) shift[i]++;
-		}
+        colorBlend[i] += 8;
+        if (colorBlend[i] == 0) shift[i]++;
 	}
 
 	for(int i = 0; i < (NUM_LEDS - LEDS_PER_SPHERE); i += LEDS_PER_SPHERE) {
 		int currentShift = shift[i / LEDS_PER_SPHERE];
 		int currentBlend = colorBlend[i / LEDS_PER_SPHERE];
 		int isActive = 0;
-		if((activeSpheres-1) * LEDS_PER_SPHERE == i && transition) {
-			for(int j = 0; j < 3; j++) {
-				leds[i + j] = blend(currentColor[j], colors[circle+1][(currentShift + j)%3], colorBlendActive);
-			}
-			if (colorBlendActive < currentBlend) colorBlendActive += 8;
-			else transition = false;
-			Serial.print(colorBlendActive);
-			Serial.print(" ");
-			Serial.print(currentBlend);
-			Serial.println();
-		} 
-		else {
-			if(i < activeSpheres * LEDS_PER_SPHERE) isActive = 1;
-			for(int j = 0; j < 3; j++) {
-				CRGB color1 = colors[circle + isActive][(currentShift + j) % 3];
-				CRGB color2 = colors[circle + isActive][(currentShift+ j + 1) % 3];
-				leds[i + j] = blend(color1, color2, currentBlend);
-				setBrightness(i + j, isActive);
-			}
-		}
+        bool descendingSphere = (i == (activeSpheres - 1) * LEDS_PER_SPHERE) && descending;
+        if(i < activeSpheres * LEDS_PER_SPHERE && !descendingSphere) isActive = 1;
+        for(int j = 0; j < 3; j++) {
+            CRGB color1 = colors[circle + isActive][(currentShift + j) % 3];
+            CRGB color2 = colors[circle + isActive][(currentShift+ j + 1) % 3];
+            leds[i + j] = blend(color1, color2, currentBlend);
+            setBrightness(i + j, isActive);
+        }
+        if(transition) {
+            if(descending) {
+                transitionBrightness += 5;
+                if (transitionBrightness == 255) descending = false;
+            }
+            else {
+                transitionBrightness -= 5;
+                if (transitionBrightness == 0) transition = false;
+            }
+            for(int j = 0; j < 3; j++) {
+                leds[i + j] = blend(leds[i + j], CRGB::Black, transitionBrightness);
+            }
+        }
 	}
 	FastLED.show();
 }
@@ -213,8 +213,10 @@ void newSphere() {
 		currentColor[i] = leds[(activeSpheres-1) * LEDS_PER_SPHERE + i];
 	}
 
-	colorBlendActive = 0;
-	transition = true;
+	transitionBrightness = 0;
+    transition = true;
+	descending = true;
+    
 
 	if(activeSpheres == NUM_SPHERES + 1) {
 		activeSpheres = 1;
