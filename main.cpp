@@ -9,6 +9,7 @@
 #define BRIGHTNESS_DELAY 10 
 #define INACTIVE_BRIGHTNESS 30
 #define NUM_PEARLS_IN_GRADIENT 10
+#define NUM_CIRCLES 9
 #define PEARL_DELAY 30
 #define FIRE_DELAY 30
 // #define IDLE_TIMEOUT 600000
@@ -21,8 +22,9 @@
 CRGB leds[NUM_LEDS];
 
 // For testing
-CRGB colors[8][3] =	{
+CRGB colors[NUM_CIRCLES][3] =	{
 					{{255, 0, 0}, {0, 255, 0}, {0, 0, 255}},			//3
+					{{230, 255, 51}, {255, 51, 212}, {51, 249, 255}},
 					{{255, 0, 0}, {0, 0, 0}, {0, 0, 0}},				//idle
 					{{0, 0, 0}, {0, 255, 0}, {0, 0, 0}},				//1
 					{{0, 0, 255}, {0, 0, 0}, {0, 0, 0}},			//2
@@ -190,7 +192,7 @@ void newSphere() {
 	if(activeSpheres == NUM_SPHERES + 1) {
 		activeSpheres = 0;
 		circle++;
-		if(circle == 8) reset();
+		if(circle == NUM_CIRCLES) reset();
 	}
 	else {
 		transitionBrightness[activeSpheres - 1] = 250;
