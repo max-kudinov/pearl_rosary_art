@@ -48,7 +48,7 @@ unsigned long previousBrightnessCheck = 0;
 unsigned long previousCircle = 0;
 
 bool autoMode = false;
-bool isInReset = false;
+bool reset = false;
 int globalBrightness = MANUAL_BRIGHTNESS;
 
 int colorBlend[NUM_SPHERES];
@@ -68,10 +68,10 @@ void mainAnimation();
 void checkButton();
 void fireAnimation();
 void autoplay();
-void reset();
 void newSphere();
 void changeGlobalBrightness();
 void changeSphereBrightness(int sphere, int isActive);
+void changeTransitionBrightness(int sphere, int index);
 void initStates();
 
 void setup() {
@@ -86,7 +86,7 @@ void setup() {
 void loop() {
 	if(!autoMode && millis() - previousPress > IDLE_TIMEOUT) {
 		autoMode = true;
-		reset();
+		reset = true;;
 	}
 
 	if(autoMode && millis() - previousCircle > CIRCLE_PERIOD) {
@@ -134,7 +134,7 @@ void mainAnimation() {
 		int currentBlend = colorBlend[currentSphere];
 		int isActive = 0;
 
-        if(currentSphere < activeSpheres && (!descending[currentSphere] || isInReset)) isActive = 1;
+        if(currentSphere < activeSpheres && !descending[currentSphere]) isActive = 1;
 		changeSphereBrightness(currentSphere, isActive);
 
         for(int j = 0; j < 3; j++) {
@@ -143,29 +143,8 @@ void mainAnimation() {
             leds[i + j] = blend(color1, color2, currentBlend);
 			leds[i + j] = blend(CRGB::Black, leds[i + j], sphereBrightness[currentSphere]);
         }
-
-        if(transition[currentSphere]) {
-            if(descending[currentSphere]) {
-                transitionBrightness[currentSphere] -= isInReset ? 5 : 25;
-                if (transitionBrightness[currentSphere] == 0) descending[currentSphere] = false;
-            }
-            else {
-                transitionBrightness[currentSphere] += 5;
-                if (transitionBrightness[currentSphere] == 250) transition[currentSphere] = false;
-            }
-
-            for(int j = 0; j < 3; j++) {
-				leds[i + j] = blend(CRGB::Black, leds[i + j], transitionBrightness[currentSphere]);
-            }
-        }
+		changeTransitionBrightness(currentSphere, i);
 	}
-	if(isInReset && !descending[0]) {
-		isInReset = false;
-		activeSpheres = 0;
-		if(autoMode) circle = 0;
-		else circle = 2;
-	}
-
 	FastLED.show();
 }
 
@@ -196,13 +175,13 @@ void newSphere() {
 
 	if(activeSpheres == NUM_SPHERES + 1) {
 		if(autoMode) {
-			reset();
+			reset = true;
 			previousCircle = millis();
 		}
 		else {
 			activeSpheres = 0;
 			circle++;
-			if(circle == NUM_CIRCLES) reset();
+			if(circle == NUM_CIRCLES) reset = true;;
 		}
 	}
 	else {
@@ -213,41 +192,59 @@ void newSphere() {
 }
 
 void autoplay() {
-	if(millis() - previousSphere > NEW_SPHERE_PERIOD && !isInReset) {
+	if(millis() - previousSphere > NEW_SPHERE_PERIOD && !reset) {
 		newSphere();
 		previousSphere = millis();
 	}
 }
 
-void reset() {
-	isInReset = true;
-	for(int i = 0; i < NUM_SPHERES; i++)
-	{
-		transitionBrightness[i] = 250;
-		transition[i] = true;
-		descending[i] = true;
-	}
-}
-
 void changeGlobalBrightness() {
-	if(autoMode && globalBrightness != AUTO_BRIGHTNESS) {
-		if (globalBrightness > AUTO_BRIGHTNESS) globalBrightness--;
-		else if (globalBrightness < AUTO_BRIGHTNESS) globalBrightness++;
+	if(reset) {
+		globalBrightness--;
+		if(globalBrightness == 0) {
+			reset = false;
+			activeSpheres = 0;
+			if(autoMode) circle = 0;
+			else circle = 2;
+		}
 	}
-	if(!autoMode && globalBrightness != MANUAL_BRIGHTNESS) {
-		if (globalBrightness > MANUAL_BRIGHTNESS) globalBrightness--;
-		else if (globalBrightness < MANUAL_BRIGHTNESS) globalBrightness++;
+	else {
+		if(autoMode && globalBrightness != AUTO_BRIGHTNESS) {
+			if (globalBrightness > AUTO_BRIGHTNESS) globalBrightness--;
+			else if (globalBrightness < AUTO_BRIGHTNESS) globalBrightness++;
+		}
+		if(!autoMode && globalBrightness != MANUAL_BRIGHTNESS) {
+			if (globalBrightness > MANUAL_BRIGHTNESS) globalBrightness--;
+			else if (globalBrightness < MANUAL_BRIGHTNESS) globalBrightness++;
+		}
 	}
 	FastLED.setBrightness(globalBrightness);
+}
+
+void changeTransitionBrightness(int sphere, int index) {
+	if(transition[sphere]) {
+		if(descending[sphere]) {
+			transitionBrightness[sphere] -= 25;
+			if (transitionBrightness[sphere] == 0) descending[sphere] = false;
+		}
+		else {
+			transitionBrightness[sphere] += 5;
+			if (transitionBrightness[sphere] == 250) transition[sphere] = false;
+		}
+
+		for(int j = 0; j < 3; j++) {
+			leds[index + j] = blend(CRGB::Black, leds[index + j], transitionBrightness[sphere]);
+		}
+	}
 }
 
 void checkButton() {
 	if(millis() - previousPress > 250 && !digitalRead(BUTTON_PIN)){
 		if(autoMode) {
 			autoMode = false;
-			reset();
+			reset = true;
 		}
-		else if(!isInReset) newSphere();
+		else if(!reset) newSphere();
 		previousPress = millis();
 	}
 }
