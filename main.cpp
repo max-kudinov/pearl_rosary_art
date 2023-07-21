@@ -25,7 +25,7 @@ CRGB leds[NUM_LEDS];
 CRGB colors[8][3] =	{{{255, 0, 0}, {0, 0, 0}, {0, 0, 0}},				//idle
 					{{0, 0, 0}, {0, 255, 0}, {0, 0, 0}},				//1
 					{{0, 0, 255}, {0, 0, 0}, {0, 0, 0}},			//2
-					{{102, 204, 102}, {204, 255, 51}, {255, 225, 11}},			//3
+					{{255, 0, 0}, {0, 255, 0}, {0, 0, 255}},			//3
 					{{255, 225, 11}, {255, 153, 0}, {255, 51, 51}},				//4
 					{{255, 153, 0}, {255, 51, 51}, {255, 102, 204}},			//5
 					{{255, 102, 204}, {153, 255, 255}, {255, 255, 217}},		//6	
@@ -61,7 +61,7 @@ unsigned long previousBrightnessCheck = 0;
 bool autoMode = false;
 int globalBrightness = MANUAL_BRIGHTNESS;
 
-uint8_t colorBlend[NUM_SPHERES];
+int colorBlend[NUM_SPHERES];
 uint8_t shift [NUM_SPHERES];
 uint8_t sphereBrightness[NUM_SPHERES];
 uint8_t transitionBrightness[NUM_SPHERES];
@@ -71,7 +71,7 @@ bool descending[NUM_SPHERES];
 uint8_t fireColorBlend = 0;
 uint8_t fireShift = 0;
 
-uint8_t circle = 4;
+uint8_t circle = 3;
 uint8_t activeSpheres = 0;
 
 void mainAnimation();
@@ -133,8 +133,14 @@ void loop() {
 
 void mainAnimation() {
 	for(int i = 0; i < NUM_SPHERES; i++) {
-        colorBlend[i] += 8;
-        if (colorBlend[i] == 0) shift[i]++;
+		int inc = 8;
+		if(i < activeSpheres && !descending[i]) inc *= 2;
+        colorBlend[i] += inc;
+        if (colorBlend[i] > 255) 
+		{
+			colorBlend[i] = 0;
+			shift[i]++;
+		}
 	}
 
 	for(int i = 0; i < (NUM_LEDS - LEDS_PER_SPHERE); i += LEDS_PER_SPHERE) {
