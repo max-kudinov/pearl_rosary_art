@@ -7,7 +7,8 @@
 #define MANUAL_BRIGHTNESS 255
 #define AUTO_BRIGHTNESS 200
 #define BRIGHTNESS_DELAY 10 
-#define INACTIVE_BRIGHTNESS_DIFFERENCE 200
+#define INACTIVE_BRIGHTNESS 30
+#define NUM_PEARLS_IN_GRADIENT 10
 #define PEARL_DELAY 30
 #define FIRE_DELAY 30
 // #define IDLE_TIMEOUT 600000
@@ -62,6 +63,7 @@ int globalBrightness = MANUAL_BRIGHTNESS;
 
 uint8_t colorBlend[NUM_SPHERES];
 uint8_t shift [NUM_SPHERES];
+uint8_t sphereBrightness[NUM_SPHERES];
 uint8_t transitionBrightness[NUM_SPHERES];
 bool transition[NUM_SPHERES];
 bool descending[NUM_SPHERES];
@@ -83,7 +85,7 @@ void newSphere();
 void blackout();
 void changeBrightness();
 void smoothBrightness();
-void setBrightness(int index, int isActive);
+void setBrightness(int sphere, int isActive);
 void initStates();
 
 void setup() {
@@ -140,24 +142,29 @@ void mainAnimation() {
 		int currentShift = shift[currentSphere];
 		int currentBlend = colorBlend[currentSphere];
 		int isActive = 0;
-        if(currentSphere + 1 <= activeSpheres && !descending[currentSphere]) isActive = 1;
+
+        if(currentSphere < activeSpheres && !descending[currentSphere]) isActive = 1;
+		setBrightness(currentSphere, isActive);
+
         for(int j = 0; j < 3; j++) {
             CRGB color1 = colors[circle + isActive][(currentShift + j) % 3];
             CRGB color2 = colors[circle + isActive][(currentShift+ j + 1) % 3];
             leds[i + j] = blend(color1, color2, currentBlend);
-            setBrightness(i + j, isActive);
+			leds[i + j] = blend(CRGB::Black, leds[i + j], sphereBrightness[currentSphere]);
         }
+
         if(transition[currentSphere]) {
             if(descending[currentSphere]) {
-                transitionBrightness[currentSphere] += 25;
-                if (transitionBrightness[currentSphere] == 250) descending[currentSphere] = false;
+                transitionBrightness[currentSphere] -= 25;
+                if (transitionBrightness[currentSphere] == 0) descending[currentSphere] = false;
             }
             else {
-                transitionBrightness[currentSphere] -= 25;
-                if (transitionBrightness[currentSphere] == 0) transition[currentSphere] = false;
+                transitionBrightness[currentSphere] += 5;
+                if (transitionBrightness[currentSphere] == 250) transition[currentSphere] = false;
             }
+
             for(int j = 0; j < 3; j++) {
-                leds[i + j] = blend(leds[i + j], CRGB::Black, transitionBrightness[currentSphere]);
+				leds[i + j] = blend(CRGB::Black, leds[i + j], transitionBrightness[currentSphere]);
             }
         }
 	}
@@ -174,9 +181,16 @@ void fireAnimation() {
 	}
 }
 
-void setBrightness(int index, int isActive) {
-	if(isActive == 1) leds[index] = blend(leds[index], CRGB::Black, 0);
-	else leds[index] = blend(leds[index], CRGB::Black, INACTIVE_BRIGHTNESS_DIFFERENCE);
+void setBrightness(int sphere, int isActive) {
+	if(isActive == 1) {
+		int position = activeSpheres - sphere + 1;
+		int brightGradient = 255 - ((255 - INACTIVE_BRIGHTNESS + 30) / NUM_PEARLS_IN_GRADIENT) * position;
+
+		if(position < NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] < brightGradient) sphereBrightness[sphere]++;
+		else if(position < NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] > brightGradient) sphereBrightness[sphere]--;
+		else if (position >= NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS + 30) sphereBrightness[sphere]--;
+	}
+	else if(isActive == 0 && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS) sphereBrightness[sphere]--;
 }
 
 void finalAnimation() {
@@ -214,7 +228,7 @@ void newSphere() {
 		if(circle == 8) reset();
 	}
 	else {
-		transitionBrightness[activeSpheres - 1] = 0;
+		transitionBrightness[activeSpheres - 1] = 250;
 		transition[activeSpheres - 1] = true;
 		descending[activeSpheres - 1] = true;
 	}
@@ -268,7 +282,8 @@ void initStates() {
 	for(int i = 0; i < NUM_SPHERES; i++) {
 		colorBlend[i] = random(0, 32) * 8;
 		shift[i] = random(0, 3);
-		transitionBrightness[i] = 0;
+		sphereBrightness[i] = INACTIVE_BRIGHTNESS;
+		transitionBrightness[i] = 250;
 		transition[i] = false;
 		descending[i] = false;
 	}
