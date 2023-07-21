@@ -4,18 +4,21 @@
 #define NUM_LEDS 60
 #define NUM_SPHERES 19
 #define LEDS_PER_SPHERE 3
+
 #define MANUAL_BRIGHTNESS 255
-#define AUTO_BRIGHTNESS 120
+#define AUTO_BRIGHTNESS 130
+#define INACTIVE_BRIGHTNESS 70
 #define BRIGHTNESS_DELAY 10 
-#define INACTIVE_BRIGHTNESS 30
+
 #define NUM_PEARLS_IN_GRADIENT 10
 #define NUM_CIRCLES 9
+
 #define PEARL_DELAY 30
 #define FIRE_DELAY 30
-// #define IDLE_TIMEOUT 600000
 #define IDLE_TIMEOUT 10000
-// #define NEW_SPHERE_PERIOD 25 * 1000
-#define NEW_SPHERE_PERIOD 6000
+#define NEW_SPHERE_PERIOD 1000
+#define CIRCLE_PERIOD 15000
+
 #define STRIP_PIN A0
 #define BUTTON_PIN A1
 
@@ -42,6 +45,7 @@ unsigned long previousPearlUpdate = 0;
 unsigned long previousFireUpdate = 0;
 unsigned long previousSphere = 0;
 unsigned long previousBrightnessCheck = 0;
+unsigned long previousCircle = 0;
 
 bool autoMode = false;
 bool isInReset = false;
@@ -57,7 +61,7 @@ bool descending[NUM_SPHERES];
 uint8_t fireColorBlend = 0;
 uint8_t fireShift = 0;
 
-uint8_t circle = 7;
+uint8_t circle = 2;
 uint8_t activeSpheres = 0;
 
 void mainAnimation();
@@ -80,14 +84,14 @@ void setup() {
 }
 
 void loop() {
-	// if(!autoMode && millis() - previousPress > IDLE_TIMEOUT) {
-	// 	autoMode = true;
-	// 	reset();
-	// }
+	if(!autoMode && millis() - previousPress > IDLE_TIMEOUT) {
+		autoMode = true;
+		reset();
+	}
 
-	// if(autoMode) {
-	// 	autoplay();
-	// }
+	if(autoMode && millis() - previousCircle > CIRCLE_PERIOD) {
+		autoplay();
+	}
 
 	if(millis() - previousPearlUpdate > PEARL_DELAY){
 		mainAnimation();
@@ -130,7 +134,7 @@ void mainAnimation() {
 		int currentBlend = colorBlend[currentSphere];
 		int isActive = 0;
 
-        if(currentSphere < activeSpheres && !descending[currentSphere]) isActive = 1;
+        if(currentSphere < activeSpheres && (!descending[currentSphere] || isInReset)) isActive = 1;
 		changeSphereBrightness(currentSphere, isActive);
 
         for(int j = 0; j < 3; j++) {
@@ -157,8 +161,9 @@ void mainAnimation() {
 	}
 	if(isInReset && !descending[0]) {
 		isInReset = false;
-		circle = 0;
 		activeSpheres = 0;
+		if(autoMode) circle = 0;
+		else circle = 2;
 	}
 
 	FastLED.show();
@@ -190,9 +195,15 @@ void newSphere() {
 	activeSpheres++;
 
 	if(activeSpheres == NUM_SPHERES + 1) {
-		activeSpheres = 0;
-		circle++;
-		if(circle == NUM_CIRCLES) reset();
+		if(autoMode) {
+			reset();
+			previousCircle = millis();
+		}
+		else {
+			activeSpheres = 0;
+			circle++;
+			if(circle == NUM_CIRCLES) reset();
+		}
 	}
 	else {
 		transitionBrightness[activeSpheres - 1] = 250;
@@ -202,7 +213,7 @@ void newSphere() {
 }
 
 void autoplay() {
-	if(millis() - previousSphere > NEW_SPHERE_PERIOD) {
+	if(millis() - previousSphere > NEW_SPHERE_PERIOD && !isInReset) {
 		newSphere();
 		previousSphere = millis();
 	}
@@ -236,7 +247,7 @@ void checkButton() {
 			autoMode = false;
 			reset();
 		}
-		else newSphere();
+		else if(!isInReset) newSphere();
 		previousPress = millis();
 	}
 }
