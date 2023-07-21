@@ -5,7 +5,7 @@
 #define NUM_SPHERES 19
 #define LEDS_PER_SPHERE 3
 #define MANUAL_BRIGHTNESS 255
-#define AUTO_BRIGHTNESS 200
+#define AUTO_BRIGHTNESS 120
 #define BRIGHTNESS_DELAY 10 
 #define INACTIVE_BRIGHTNESS 30
 #define NUM_PEARLS_IN_GRADIENT 10
@@ -21,33 +21,16 @@
 CRGB leds[NUM_LEDS];
 
 // For testing
-
-CRGB colors[8][3] =	{{{255, 0, 0}, {0, 0, 0}, {0, 0, 0}},				//idle
+CRGB colors[8][3] =	{
+					{{255, 0, 0}, {0, 255, 0}, {0, 0, 255}},			//3
+					{{255, 0, 0}, {0, 0, 0}, {0, 0, 0}},				//idle
 					{{0, 0, 0}, {0, 255, 0}, {0, 0, 0}},				//1
 					{{0, 0, 255}, {0, 0, 0}, {0, 0, 0}},			//2
-					{{255, 0, 0}, {0, 255, 0}, {0, 0, 255}},			//3
 					{{255, 225, 11}, {255, 153, 0}, {255, 51, 51}},				//4
 					{{255, 153, 0}, {255, 51, 51}, {255, 102, 204}},			//5
 					{{255, 102, 204}, {153, 255, 255}, {255, 255, 217}},		//6	
-					{{255, 255, 11}, {153, 255, 255}, {255, 255, 217}}};		//7
-
-// CRGB colors[8][3] =	{{{255, 0, 0}, {255, 0, 0}, {255, 0, 0}},				//idle
-// 					{{0, 255, 0}, {0, 255, 0}, {0, 255, 0}},				//1
-// 					{{0, 0, 255}, {0, 0, 0}, {0, 0, 0}},			//2
-// 					{{102, 204, 102}, {204, 255, 51}, {255, 225, 11}},			//3
-// 					{{255, 225, 11}, {255, 153, 0}, {255, 51, 51}},				//4
-// 					{{255, 153, 0}, {255, 51, 51}, {255, 102, 204}},			//5
-// 					{{255, 102, 204}, {153, 255, 255}, {255, 255, 217}},		//6	
-// 					{{255, 255, 11}, {153, 255, 255}, {255, 255, 217}}};		//7
-
-// CRGB colors[8][3]= {{{0, 51, 204}, {51, 0, 153}, {153, 51, 204}},				//idle
-// 							{{0, 51, 204}, {153, 51, 204}, {51, 204, 204}},				//1
-// 							{{153, 51, 204}, {51, 204, 204}, {102, 204, 102}},			//2
-// 							{{102, 204, 102}, {204, 255, 51}, {255, 225, 11}},			//3
-// 							{{255, 225, 11}, {255, 153, 0}, {255, 51, 51}},				//4
-// 							{{255, 153, 0}, {255, 51, 51}, {255, 102, 204}},			//5
-// 							{{255, 102, 204}, {153, 255, 255}, {255, 255, 217}},		//6	
-// 							{{255, 255, 11}, {153, 255, 255}, {255, 255, 217}}};		//7
+					{{255, 255, 11}, {153, 255, 255}, {255, 255, 217}}
+					};		//7
 
 CRGB fireColors[3] = {{255, 0, 0}, {255, 128, 0}, {255, 255, 0}};
 
@@ -59,6 +42,7 @@ unsigned long previousSphere = 0;
 unsigned long previousBrightnessCheck = 0;
 
 bool autoMode = false;
+bool isInReset = false;
 int globalBrightness = MANUAL_BRIGHTNESS;
 
 int colorBlend[NUM_SPHERES];
@@ -71,21 +55,17 @@ bool descending[NUM_SPHERES];
 uint8_t fireColorBlend = 0;
 uint8_t fireShift = 0;
 
-uint8_t circle = 3;
+uint8_t circle = 7;
 uint8_t activeSpheres = 0;
 
 void mainAnimation();
 void checkButton();
-void finalAnimation();
 void fireAnimation();
-// void startup();
 void autoplay();
 void reset();
 void newSphere();
-void blackout();
-void changeBrightness();
-void smoothBrightness();
-void setBrightness(int sphere, int isActive);
+void changeGlobalBrightness();
+void changeSphereBrightness(int sphere, int isActive);
 void initStates();
 
 void setup() {
@@ -94,19 +74,18 @@ void setup() {
 	FastLED.addLeds<WS2811, STRIP_PIN, GRB>(leds, NUM_LEDS);
 	FastLED.setBrightness(MANUAL_BRIGHTNESS);
 	pinMode(BUTTON_PIN, INPUT_PULLUP);
-	// startup();
 	Serial.begin(9600);
 }
 
 void loop() {
-	if(!autoMode && millis() - previousPress > IDLE_TIMEOUT) {
-		autoMode = true;
-		reset();
-	}
+	// if(!autoMode && millis() - previousPress > IDLE_TIMEOUT) {
+	// 	autoMode = true;
+	// 	reset();
+	// }
 
-	if(autoMode) {
-		autoplay();
-	}
+	// if(autoMode) {
+	// 	autoplay();
+	// }
 
 	if(millis() - previousPearlUpdate > PEARL_DELAY){
 		mainAnimation();
@@ -119,7 +98,7 @@ void loop() {
 	}
 
 	if(millis() - previousBrightnessCheck > BRIGHTNESS_DELAY) {
-		changeBrightness();
+		changeGlobalBrightness();
 		previousBrightnessCheck = millis();
 	}
 
@@ -150,7 +129,7 @@ void mainAnimation() {
 		int isActive = 0;
 
         if(currentSphere < activeSpheres && !descending[currentSphere]) isActive = 1;
-		setBrightness(currentSphere, isActive);
+		changeSphereBrightness(currentSphere, isActive);
 
         for(int j = 0; j < 3; j++) {
             CRGB color1 = colors[circle + isActive][(currentShift + j) % 3];
@@ -161,7 +140,7 @@ void mainAnimation() {
 
         if(transition[currentSphere]) {
             if(descending[currentSphere]) {
-                transitionBrightness[currentSphere] -= 25;
+                transitionBrightness[currentSphere] -= isInReset ? 5 : 25;
                 if (transitionBrightness[currentSphere] == 0) descending[currentSphere] = false;
             }
             else {
@@ -174,6 +153,12 @@ void mainAnimation() {
             }
         }
 	}
+	if(isInReset && !descending[0]) {
+		isInReset = false;
+		circle = 0;
+		activeSpheres = 0;
+	}
+
 	FastLED.show();
 }
 
@@ -187,7 +172,7 @@ void fireAnimation() {
 	}
 }
 
-void setBrightness(int sphere, int isActive) {
+void changeSphereBrightness(int sphere, int isActive) {
 	if(isActive == 1) {
 		int position = activeSpheres - sphere + 1;
 		int brightGradient = 255 - ((255 - INACTIVE_BRIGHTNESS + 30) / NUM_PEARLS_IN_GRADIENT) * position;
@@ -198,32 +183,6 @@ void setBrightness(int sphere, int isActive) {
 	}
 	else if(isActive == 0 && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS) sphereBrightness[sphere]--;
 }
-
-void finalAnimation() {
-	for(int i = 0; i < NUM_LEDS; i++) {
-		leds[i] = CRGB::White;
-		FastLED.show();
-		delay(20);
-	}
-	blackout();
-	// startup();
-}
-
-// void startup() {
-// 	fireAnimation();
-// 	for(int i = 0; i < 255; i++) {
-// 		for(int j = 0; j < NUM_LEDS - LEDS_PER_SPHERE; j += LEDS_PER_SPHERE) {
-// 			leds[j] = blend(CRGB::Black, colors[circle][0], i);
-// 			leds[j+1] = blend(CRGB::Black, colors[circle][1], i);
-// 			leds[j+2] = blend(CRGB::Black, colors[circle][2], i);
-// 			setBrightness(j, 0);
-// 			setBrightness(j + 1, 0);
-// 			setBrightness(j + 2, 0);
-// 		}
-// 		FastLED.show();
-// 		delay(5);
-// 	}
-// }
 
 void newSphere() {
 	activeSpheres++;
@@ -248,20 +207,16 @@ void autoplay() {
 }
 
 void reset() {
-	circle = 0;
-	activeSpheres = 0;
-	finalAnimation();
-}
-
-void blackout() {
-	for(int i = 0; i < NUM_LEDS; i++) {
-		leds[i] = CRGB::Black;
-		FastLED.show();
-		delay(20);
+	isInReset = true;
+	for(int i = 0; i < NUM_SPHERES; i++)
+	{
+		transitionBrightness[i] = 250;
+		transition[i] = true;
+		descending[i] = true;
 	}
 }
 
-void changeBrightness() {
+void changeGlobalBrightness() {
 	if(autoMode && globalBrightness != AUTO_BRIGHTNESS) {
 		if (globalBrightness > AUTO_BRIGHTNESS) globalBrightness--;
 		else if (globalBrightness < AUTO_BRIGHTNESS) globalBrightness++;
@@ -289,9 +244,8 @@ void initStates() {
 		colorBlend[i] = random(0, 32) * 8;
 		shift[i] = random(0, 3);
 		sphereBrightness[i] = INACTIVE_BRIGHTNESS;
-		transitionBrightness[i] = 250;
-		transition[i] = false;
+		transitionBrightness[i] = 0;
+		transition[i] = true;
 		descending[i] = false;
 	}
 }
-
