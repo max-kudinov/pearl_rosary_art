@@ -161,11 +161,11 @@ void fireAnimation() {
 void changeSphereBrightness(int sphere, int isActive) {
 	if(isActive == 1) {
 		int position = activeSpheres - sphere + 1;
-		int brightGradient = 255 - ((255 - INACTIVE_BRIGHTNESS + 30) / NUM_PEARLS_IN_GRADIENT) * position;
+		int brightGradient = 255 - ((255 - (INACTIVE_BRIGHTNESS + 30)) / NUM_PEARLS_IN_GRADIENT) * position;
 
-		if(position < NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] < brightGradient) sphereBrightness[sphere]++;
-		else if(position < NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] > brightGradient) sphereBrightness[sphere]--;
-		else if (position >= NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS + 30) sphereBrightness[sphere]--;
+		if(position < NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] < brightGradient) sphereBrightness[sphere] += 5;
+		else if(position < NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] > brightGradient) sphereBrightness[sphere] -= 5;
+		else if (position >= NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS + 30) sphereBrightness[sphere] -= 5;
 	}
 	else if(isActive == 0 && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS) sphereBrightness[sphere]--;
 }
