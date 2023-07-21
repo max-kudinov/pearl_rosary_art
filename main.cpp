@@ -60,8 +60,6 @@ unsigned long previousBrightnessCheck = 0;
 bool autoMode = false;
 int globalBrightness = MANUAL_BRIGHTNESS;
 
-CRGB currentColor[3];
-
 uint8_t colorBlend[NUM_SPHERES];
 uint8_t shift [NUM_SPHERES];
 uint8_t transitionBrightness[NUM_SPHERES];
@@ -210,23 +208,15 @@ void finalAnimation() {
 void newSphere() {
 	activeSpheres++;
 
-	for(int i = 0; i < 3; i++) {
-		currentColor[i] = leds[(activeSpheres-1) * LEDS_PER_SPHERE + i];
-	}
-
-	transitionBrightness[activeSpheres - 1] = 0;
-    transition[activeSpheres - 1] = true;
-	descending[activeSpheres - 1] = true;
-    
-
 	if(activeSpheres == NUM_SPHERES + 1) {
-		activeSpheres = 1;
+		activeSpheres = 0;
 		circle++;
-		for(int i = 0; i < 3; i++) {
-			currentColor[i] = leds[i];
-		}
-		smoothBrightness();
 		if(circle == 8) reset();
+	}
+	else {
+		transitionBrightness[activeSpheres - 1] = 0;
+		transition[activeSpheres - 1] = true;
+		descending[activeSpheres - 1] = true;
 	}
 }
 
@@ -263,18 +253,6 @@ void changeBrightness() {
 	FastLED.setBrightness(globalBrightness);
 }
 
-void smoothBrightness() {
-	for(int i = 0; i < INACTIVE_BRIGHTNESS_DIFFERENCE; i++) {
-		for(int j = 0; j < NUM_LEDS - LEDS_PER_SPHERE; j += 3) {
-			for(int k = 0; k < 3; k++) {
-				leds[j + k] = blend(currentColor[k], CRGB::Black, i);
-			}
-		}
-		FastLED.show();
-		delay(5);
-	}
-}
-
 void checkButton() {
 	if(millis() - previousPress > 250 && !digitalRead(BUTTON_PIN)){
 		if(autoMode) {
@@ -295,3 +273,4 @@ void initStates() {
 		descending[i] = false;
 	}
 }
+
