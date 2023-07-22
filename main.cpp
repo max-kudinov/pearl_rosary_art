@@ -2,6 +2,7 @@
 #include <FastLED.h>
 
 #define NUM_LEDS 60
+#define NUM_BUTTON_LEDS 8
 #define NUM_SPHERES 19
 #define LEDS_PER_SPHERE 3
 
@@ -19,10 +20,14 @@
 #define NEW_SPHERE_PERIOD 1000
 #define CIRCLE_PERIOD 15000
 
+#define MANUAL_MODE_TRANSITION_MULT 1.5
+
 #define STRIP_PIN A0
-#define BUTTON_PIN A1
+#define BUTTON_STRIP_PIN A1
+#define BUTTON_PIN A2
 
 CRGB leds[NUM_LEDS];
+CRGB button_leds[NUM_BUTTON_LEDS];
 
 // For testing
 CRGB colors[NUM_CIRCLES][3] =	{
@@ -49,7 +54,7 @@ unsigned long previousCircle = 0;
 
 bool autoMode = false;
 bool reset = false;
-int globalBrightness = MANUAL_BRIGHTNESS;
+int globalBrightness = 0;
 
 int colorBlend[NUM_SPHERES];
 uint8_t shift [NUM_SPHERES];
@@ -57,6 +62,11 @@ uint8_t sphereBrightness[NUM_SPHERES];
 uint8_t transitionBrightness[NUM_SPHERES];
 bool transition[NUM_SPHERES];
 bool descending[NUM_SPHERES];
+
+uint8_t buttonShift = 0;
+int buttonBlend = 0;
+int buttonBrightness = 255;
+bool buttonDescend = false;
 
 uint8_t fireColorBlend = 0;
 uint8_t fireShift = 0;
@@ -66,6 +76,7 @@ uint8_t activeSpheres = 0;
 
 void mainAnimation();
 void checkButton();
+void buttonAnimation();
 void fireAnimation();
 void autoplay();
 void newSphere();
@@ -78,7 +89,7 @@ void setup() {
 	randomSeed(analogRead(A5));
 	initStates();
 	FastLED.addLeds<WS2811, STRIP_PIN, GRB>(leds, NUM_LEDS);
-	FastLED.setBrightness(MANUAL_BRIGHTNESS);
+	FastLED.addLeds<WS2811, BUTTON_STRIP_PIN, GRB>(button_leds, NUM_BUTTON_LEDS);
 	pinMode(BUTTON_PIN, INPUT_PULLUP);
 	Serial.begin(9600);
 }
@@ -95,6 +106,7 @@ void loop() {
 
 	if(millis() - previousPearlUpdate > PEARL_DELAY){
 		mainAnimation();
+		buttonAnimation();
 		previousPearlUpdate = millis();
 	}
 
@@ -118,7 +130,7 @@ void loop() {
 
 void mainAnimation() {
 	for(int i = 0; i < NUM_SPHERES; i++) {
-		int inc = 8;
+		int inc = autoMode ? 8 : 8 * MANUAL_MODE_TRANSITION_MULT;
 		if(i < activeSpheres && !descending[i]) inc *= 2;
         colorBlend[i] += inc;
         if (colorBlend[i] > 255) 
@@ -178,10 +190,11 @@ void newSphere() {
 			reset = true;
 			previousCircle = millis();
 		}
+		else if(circle + 2 == NUM_CIRCLES) reset = true;
 		else {
 			activeSpheres = 0;
 			circle++;
-			if(circle == NUM_CIRCLES) reset = true;;
+			buttonDescend = true;
 		}
 	}
 	else {
@@ -246,6 +259,35 @@ void checkButton() {
 		}
 		else if(!reset) newSphere();
 		previousPress = millis();
+	}
+}
+
+void buttonAnimation() {
+	// buttonBlend += 16 * MANUAL_MODE_TRANSITION_MULT;
+	buttonBlend += 8 * MANUAL_MODE_TRANSITION_MULT;
+	if (buttonBlend > 255) {
+		buttonBlend = 0;
+		buttonShift++;
+	}
+
+	if(buttonDescend) {
+		buttonBrightness -= 5;
+		if(buttonBrightness == 0) buttonDescend = false;
+	}
+	else if(buttonBrightness < 255) buttonBrightness += 5;
+
+	int next = buttonDescend ? 0 : 1;
+
+	for(int i = 0; i < 3; i++) {
+		CRGB color1 = colors[circle + next][(buttonShift + i) % 3];
+		CRGB color2 = colors[circle + next][(buttonShift+ i + 1) % 3];
+		button_leds[i * 3] = blend(color1, color2, buttonBlend);
+		button_leds[i * 3 + 1] = button_leds[i * 3];
+		if(i != 2) button_leds[i * 3 + 2] = button_leds[i * 3];
+	}
+
+	for(int i = 0; i < NUM_BUTTON_LEDS; i++) {
+		button_leds[i] = blend(CRGB::Black, button_leds[i], buttonBrightness);
 	}
 }
 
