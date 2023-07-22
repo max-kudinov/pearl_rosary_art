@@ -25,6 +25,7 @@
 #define STRIP_PIN A0
 #define BUTTON_STRIP_PIN A1
 #define BUTTON_PIN A2
+#define HOLD_TIME_FOR_RESET 2000
 
 CRGB leds[NUM_LEDS];
 CRGB button_leds[NUM_BUTTON_LEDS];
@@ -45,6 +46,7 @@ CRGB colors[NUM_CIRCLES][3] =	{
 CRGB fireColors[3] = {{255, 0, 0}, {255, 128, 0}, {255, 255, 0}};
 
 
+unsigned long previousActivation = 0;
 unsigned long previousPress = 0;
 unsigned long previousPearlUpdate = 0;
 unsigned long previousFireUpdate = 0;
@@ -67,6 +69,7 @@ uint8_t buttonShift = 0;
 int buttonBlend = 0;
 int buttonBrightness = 255;
 bool buttonDescend = false;
+bool lastButtonState = false;
 
 uint8_t fireColorBlend = 0;
 uint8_t fireShift = 0;
@@ -95,14 +98,14 @@ void setup() {
 }
 
 void loop() {
-	if(!autoMode && millis() - previousPress > IDLE_TIMEOUT) {
-		autoMode = true;
-		reset = true;;
-	}
+	// if(!autoMode && millis() - previousActivation > IDLE_TIMEOUT) {
+	// 	autoMode = true;
+	// 	reset = true;;
+	// }
 
-	if(autoMode && millis() - previousCircle > CIRCLE_PERIOD) {
-		autoplay();
-	}
+	// if(autoMode && millis() - previousCircle > CIRCLE_PERIOD) {
+	// 	autoplay();
+	// }
 
 	if(millis() - previousPearlUpdate > PEARL_DELAY){
 		mainAnimation();
@@ -213,7 +216,7 @@ void autoplay() {
 
 void changeGlobalBrightness() {
 	if(reset) {
-		globalBrightness--;
+		if(globalBrightness > 0) globalBrightness--;
 		if(globalBrightness == 0) {
 			reset = false;
 			activeSpheres = 0;
@@ -252,14 +255,19 @@ void changeTransitionBrightness(int sphere, int index) {
 }
 
 void checkButton() {
-	if(millis() - previousPress > 250 && !digitalRead(BUTTON_PIN)){
+	bool buttonState = !digitalRead(BUTTON_PIN);
+	if(millis() - previousActivation > 250 && lastButtonState && !buttonState){
 		if(autoMode) {
 			autoMode = false;
 			reset = true;
 		}
 		else if(!reset) newSphere();
-		previousPress = millis();
+		previousActivation = millis();
 	}
+	if(!buttonState && !lastButtonState) previousPress = millis();
+	if(millis() - previousPress > HOLD_TIME_FOR_RESET && !reset) reset = true;
+
+	lastButtonState = buttonState;
 }
 
 void buttonAnimation() {
