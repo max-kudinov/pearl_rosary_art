@@ -98,14 +98,14 @@ void setup() {
 }
 
 void loop() {
-	// if(!autoMode && millis() - previousActivation > IDLE_TIMEOUT) {
-	// 	autoMode = true;
-	// 	reset = true;;
-	// }
+	if(!autoMode && millis() - previousActivation > IDLE_TIMEOUT) {
+		autoMode = true;
+		reset = true;;
+	}
 
-	// if(autoMode && millis() - previousCircle > CIRCLE_PERIOD) {
-	// 	autoplay();
-	// }
+	if(autoMode && millis() - previousCircle > CIRCLE_PERIOD) {
+		autoplay();
+	}
 
 	if(millis() - previousPearlUpdate > PEARL_DELAY){
 		mainAnimation();
@@ -133,7 +133,11 @@ void loop() {
 
 void mainAnimation() {
 	for(int i = 0; i < NUM_SPHERES; i++) {
-		int inc = autoMode ? 8 : 8 * MANUAL_MODE_TRANSITION_MULT;
+		int inc;
+
+		if(reset) inc = 8;
+		else inc = autoMode ? 8 : 8 * MANUAL_MODE_TRANSITION_MULT;
+
 		if(i < activeSpheres && !descending[i]) inc *= 2;
         colorBlend[i] += inc;
         if (colorBlend[i] > 255) 
@@ -272,7 +276,8 @@ void checkButton() {
 
 void buttonAnimation() {
 	// buttonBlend += 16 * MANUAL_MODE_TRANSITION_MULT;
-	buttonBlend += 8 * MANUAL_MODE_TRANSITION_MULT;
+	if(reset) buttonBlend += 8;
+	else buttonBlend += autoMode ? 8 : 8 * MANUAL_MODE_TRANSITION_MULT;
 	if (buttonBlend > 255) {
 		buttonBlend = 0;
 		buttonShift++;
