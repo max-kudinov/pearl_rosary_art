@@ -6,7 +6,7 @@
 #define NUM_SPHERES 19
 #define LEDS_PER_SPHERE 3
 
-#define MANUAL_BRIGHTNESS 255
+#define MANUAL_BRIGHTNESS 100
 #define AUTO_BRIGHTNESS 130
 #define INACTIVE_BRIGHTNESS 70
 #define BRIGHTNESS_DELAY 10 
@@ -16,7 +16,7 @@
 
 #define PEARL_DELAY 30
 #define FIRE_DELAY 30
-#define IDLE_TIMEOUT 10000
+#define IDLE_TIMEOUT 5000
 #define NEW_SPHERE_PERIOD 1000
 #define CIRCLE_PERIOD 15000
 
@@ -98,14 +98,14 @@ void setup() {
 }
 
 void loop() {
-	if(!autoMode && millis() - previousActivation > IDLE_TIMEOUT) {
-		autoMode = true;
-		reset = true;;
-	}
+	// if(!autoMode && millis() - previousActivation > IDLE_TIMEOUT) {
+	// 	autoMode = true;
+	// 	reset = true;;
+	// }
 
-	if(autoMode && millis() - previousCircle > CIRCLE_PERIOD) {
-		autoplay();
-	}
+	// if(autoMode && millis() - previousCircle > CIRCLE_PERIOD) {
+	// 	autoplay();
+	// }
 
 	if(millis() - previousPearlUpdate > PEARL_DELAY){
 		mainAnimation();
@@ -144,6 +144,7 @@ void mainAnimation() {
 		{
 			colorBlend[i] = 0;
 			shift[i]++;
+			if(shift[i] == 3) shift[i] = 0;
 		}
 	}
 
@@ -169,7 +170,10 @@ void mainAnimation() {
 
 void fireAnimation() {
 	fireColorBlend += 8;
-	if(fireColorBlend == 0) fireShift++;
+	if(fireColorBlend == 0) {
+		fireShift++;
+		if(fireShift == 3) fireShift = 0;
+	}
 	for(int j = 0; j < 3; j++) {
 		CRGB color1 = fireColors[(fireShift + j) % 3];
 		CRGB color2 = fireColors[(fireShift + j + 1) % 3];
@@ -182,11 +186,11 @@ void changeSphereBrightness(int sphere, int isActive) {
 		int position = activeSpheres - sphere + 1;
 		int brightGradient = 255 - ((255 - (INACTIVE_BRIGHTNESS + 30)) / NUM_PEARLS_IN_GRADIENT) * position;
 
-		if(position < NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] < brightGradient) sphereBrightness[sphere] += 5;
-		else if(position < NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] > brightGradient) sphereBrightness[sphere] -= 5;
-		else if (position >= NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS + 30) sphereBrightness[sphere] -= 5;
+		if(position < NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] < brightGradient) sphereBrightness[sphere] += 1;
+		else if(position < NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] > brightGradient) sphereBrightness[sphere] -= 1;
+		else if (position >= NUM_PEARLS_IN_GRADIENT && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS + 30) sphereBrightness[sphere] -= 1;
 	}
-	else if(isActive == 0 && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS) sphereBrightness[sphere]--;
+	else if(isActive == 0 && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS) sphereBrightness[sphere] -= 5;
 }
 
 void newSphere() {
@@ -281,6 +285,7 @@ void buttonAnimation() {
 	if (buttonBlend > 255) {
 		buttonBlend = 0;
 		buttonShift++;
+		if(buttonShift == 3) buttonShift = 0;
 	}
 
 	if(buttonDescend) {
@@ -309,8 +314,7 @@ void initStates() {
 		colorBlend[i] = random(0, 32) * 8;
 		shift[i] = random(0, 3);
 		sphereBrightness[i] = INACTIVE_BRIGHTNESS;
-		transitionBrightness[i] = 0;
-		transition[i] = true;
+		transition[i] = false;
 		descending[i] = false;
 	}
 }
