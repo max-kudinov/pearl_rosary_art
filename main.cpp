@@ -1,255 +1,445 @@
 #include <Arduino.h>
 #include <FastLED.h>
 
-#define NUM_LEDS 111
-#define NUM_SPHERES 36
-#define LEDS_PER_SPHERE 3
-#define MANUAL_BRIGHTNESS 200					// яркость в режиме с кнопкой (0-255)
-#define AUTO_BRIGHTNESS 255						// яркость в автоматическом режиме (0-255)
-#define INACTIVE_BRIGHTNESS_DIFFERENCE 200	 	// разница между яркостью активных и неактивных жемчужин (0 - разницы нет, 255 - неактивные не горят)
-#define PEARL_DELAY 20
+#define LOG_OUT 1
+#define FHT_N 256
+#include <FHT.h>
+
+//---------------------Настройки---------------------
+// кол-во адресных светодиодов
+#define NUM_LEDS 60
+// кол-во адресных светодиодов в кнопке (не менять, а то все наебнется)
+#define NUM_BUTTON_LEDS 8
+// кол-во сфер (без гуру и кнопки)
+#define NUM_SPHERES 6
+// кол-во адресных светодиодов на сферу
+#define LEDS_PER_SPHERE 8
+
+// глобальная яркость в режиме с кнопкой
+#define MANUAL_BRIGHTNESS 255
+// глобальная яркость в авторежиме
+#define AUTO_BRIGHTNESS 130
+// относительная яркость неактивных сфер
+#define INACTIVE_BRIGHTNESS 70
+// скорость смены глобальной яркости
+#define BRIGHTNESS_DELAY 10
+
+// максимальная яркость в аудио режиме
+#define AUDIO_MODE_MAX_BRIGHTNESS 200
+// минимальная яркость в аудио режиме
+#define AUDIO_MODE_MIN_BRIGHTNESS 120
+
+// скорость смены кнопки
+#define BUTTON_FADE_SPEED 5
+// скорость угасания сферы при переходе с неактивной в активную
+#define TRANSITION_FADE_OUT_SPEED 25
+// скорость появления сферы при переходе с неактивной в активную
+#define TRANSITION_FADE_IN_SPEED 5
+// скорость глобального угасания при ресете
+#define RESET_FADE_OUT_SPEED 3
+// скорость угасания активных сфер при переходе на новый круг
+#define INACTIVE_FADE_OUT_SPEED 5
+
+// количество сфер, которые участвуют в градиенте яркости активных сфер
+#define NUM_PEARLS_IN_GRADIENT 10
+// количество цветовых палитр (2 на авторежим и 7 на кнопку, фактически 1 круг
+// авто и 6 кнопка)
+#define NUM_CIRCLES 9
+
+// задержка (скорость) основной анимации
+#define PEARL_DELAY 30
+// задержка (скорость) гуру бусины (огня)
 #define FIRE_DELAY 30
-#define IDLE_TIMEOUT 10000						// время в миллисекундах, после которого включается автоматический режим
-#define NEW_SPHERE_PERIOD 6000					// вермя в миллисекундах, после которого загорается новая активная сфера
+// время в миллисекундах до перехода в авторежим
+#define IDLE_TIMEOUT 60000
+// период в миллисекундах между новыми сферами в авторежиме
+#define NEW_SPHERE_PERIOD 1000
+// период между кругами в авторежиме
+#define CIRCLE_PERIOD 15000
+
+// начальное значение скорости перелива
+#define BASE_TRANSITION_VALUE 8
+// коэффициент умножения скорости в режиме с кнопкой относительно авто
+#define MANUAL_MODE_TRANSITION_MULT 1.5
+
+// время в миллисекундах удержания кнопки для ресета
+#define HOLD_TIME_FOR_RESET 5000
+// время в миллисекундах удержания кнопки для аудио режима
+#define HOLD_TIME_FOR_AUDIO_MODE 10000
+
+CRGB mainColors[][3] = {
+	{{255, 0, 0}, {0, 255, 0}, {0, 0, 255}}, // неактивная палитра авторежим
+	{{230, 255, 51},
+	 {255, 51, 212},
+	 {51, 249, 255}}, // активная палитра авторежим
+	{{255, 0, 0}, {0, 0, 0}, {0, 0, 0}},				 // 1
+	{{0, 0, 0}, {0, 255, 0}, {0, 0, 0}},				 // 2
+	{{0, 0, 255}, {0, 0, 0}, {0, 0, 0}},				 // 3
+	{{255, 225, 11}, {255, 153, 0}, {255, 51, 51}},		 // 4
+	{{255, 153, 0}, {255, 51, 51}, {255, 102, 204}},	 // 5
+	{{255, 102, 204}, {153, 255, 255}, {255, 255, 217}}, // 6
+	{{255, 255, 11}, {153, 255, 255}, {255, 255, 217}}}; // 7
+
+CRGB fireColors[][3] = {{{255, 0, 0},
+						 {255, 128, 0},
+						 {255, 255, 0}}}; // цвета для огня (гуру бусина)
+//---------------------------------------------------
+
 #define STRIP_PIN A0
-#define BUTTON_PIN A1
+#define BUTTON_STRIP_PIN A1
+#define BUTTON_PIN 2
+#define AUX_PIN A3
 
 CRGB leds[NUM_LEDS];
+CRGB button_leds[NUM_BUTTON_LEDS];
 
-// Цвета для теста
-
-// CRGB colors[8][3] =	{{{255, 0, 0}, {0, 0, 0}, {0, 0, 0}},				//idle
-// 					{{0, 0, 0}, {0, 255, 0}, {0, 0, 0}},				//1
-// 					{{0, 0, 255}, {0, 0, 0}, {0, 0, 0}},			//2
-// 					{{102, 204, 102}, {204, 255, 51}, {255, 225, 11}},			//3
-// 					{{255, 225, 11}, {255, 153, 0}, {255, 51, 51}},				//4
-// 					{{255, 153, 0}, {255, 51, 51}, {255, 102, 204}},			//5
-// 					{{255, 102, 204}, {153, 255, 255}, {255, 255, 217}},		//6	
-// 					{{255, 255, 11}, {153, 255, 255}, {255, 255, 217}}};		//7
-
-// Цвета Насти:
-
-CRGB colors[8][3]= {{{0, 51, 204}, {51, 0, 153}, {153, 51, 204}},				//idle
-							{{0, 51, 204}, {153, 51, 204}, {51, 204, 204}},				//1
-							{{153, 51, 204}, {51, 204, 204}, {102, 204, 102}},			//2
-							{{102, 204, 102}, {204, 255, 51}, {255, 225, 11}},			//3
-							{{255, 225, 11}, {255, 153, 0}, {255, 51, 51}},				//4
-							{{255, 153, 0}, {255, 51, 51}, {255, 102, 204}},			//5
-							{{255, 102, 204}, {153, 255, 255}, {255, 255, 217}},		//6	
-							{{255, 255, 11}, {153, 255, 255}, {255, 255, 217}}};		//7
-
-CRGB fireColors[3] = {{255, 0, 0}, {255, 128, 0}, {255, 255, 0}};
-
-
+unsigned long previousActivation = 0;
 unsigned long previousPress = 0;
 unsigned long previousPearlUpdate = 0;
 unsigned long previousFireUpdate = 0;
 unsigned long previousSphere = 0;
+unsigned long previousBrightnessCheck = 0;
+unsigned long previousCircle = 0;
 
 bool autoMode = false;
+bool audioMode = false;
+bool reset = false;
 
-CRGB currentColor1;
-CRGB currentColor2;
-CRGB currentColor3;
+int globalBrightness = 0;
+int audioBrightness = 0;
 
-uint8_t colorBlend = 0;
-uint8_t colorBlendActive = 0;
-uint8_t shift = 0;
-uint8_t fireColorBlend = 0;
-uint8_t fireShift = 0;
+int colorBlend[NUM_SPHERES];
+int shift[NUM_SPHERES];
+int sphereBrightness[NUM_SPHERES];
+int transitionBrightness[NUM_SPHERES];
 
-uint8_t circle = 0;
-uint8_t activeSpheres = 0;
+bool transition[NUM_SPHERES];
+bool descending[NUM_SPHERES];
 
+int buttonShift = 0;
+int buttonBlend = 0;
+int buttonBrightness = 255;
+
+bool buttonDescend = false;
+bool lastButtonState = false;
+
+int fireColorBlend = 0;
+int fireShift = 0;
+
+int circle = 2;
+int activeSpheres = 0;
+
+void analizeAudio();
+void audioAnimation();
 void mainAnimation();
 void checkButton();
-void finalAnimation();
+void buttonAnimation();
 void fireAnimation();
-void startup();
 void autoplay();
-void reset();
 void newSphere();
-void blackout();
-void changeBrightness(int currentBrightness, int finalBrightness);
-void smoothBrightness();
+void changeGlobalBrightness(int step);
+void changeSphereBrightness(int sphere, int isActive);
+void changeTransitionBrightness(int sphere);
+void initStates();
+void updateSphereParameters(int sphere, int &colorBlend, int &shift, bool main);
+void updateSphere(int sphere, CRGB leds[], CRGB colorPalette[][3], int isActive,
+				  int crcl, int shift, int clrBlend);
+int isActive(int sphere);
 
 void setup() {
+	analogReference(EXTERNAL);
+	randomSeed(analogRead(A5));
+	initStates();
 	FastLED.addLeds<WS2811, STRIP_PIN, GRB>(leds, NUM_LEDS);
-	FastLED.setBrightness(MANUAL_BRIGHTNESS);
-	startup();
+	FastLED.addLeds<WS2811, BUTTON_STRIP_PIN, GRB>(button_leds,
+												   NUM_BUTTON_LEDS);
+	pinMode(BUTTON_PIN, INPUT_PULLUP);
 }
 
 void loop() {
-	if(!autoMode && millis() - previousPress > IDLE_TIMEOUT) {
-		autoMode = true;
-		changeBrightness(MANUAL_BRIGHTNESS, AUTO_BRIGHTNESS);
-		reset();
+	if (audioMode) {
+		audioAnimation();
+	} else {
+		if (!autoMode && millis() - previousActivation > IDLE_TIMEOUT) {
+			autoMode = true;
+			reset = true;
+		}
+
+		if (autoMode && millis() - previousCircle > CIRCLE_PERIOD) {
+			autoplay();
+		}
+
+		if (millis() - previousBrightnessCheck > BRIGHTNESS_DELAY) {
+			changeGlobalBrightness(1);
+			previousBrightnessCheck = millis();
+		}
 	}
 
-	if(autoMode) {
-		autoplay();
-	}
-
-	if(millis() - previousPearlUpdate > PEARL_DELAY){
+	if (millis() - previousPearlUpdate > PEARL_DELAY) {
 		mainAnimation();
+		buttonAnimation();
 		previousPearlUpdate = millis();
 	}
 
-	if(millis() - previousFireUpdate > FIRE_DELAY){
+	if (millis() - previousFireUpdate > FIRE_DELAY) {
 		fireAnimation();
 		previousFireUpdate = millis();
 	}
 
 	checkButton();
+	FastLED.show();
 }
 
 void mainAnimation() {
-	colorBlend += 5;
-	for(int i = 0; i < (NUM_LEDS - LEDS_PER_SPHERE); i += LEDS_PER_SPHERE) {
-		int j = 0;
-		if(colorBlendActive < 255 && (activeSpheres-1) * LEDS_PER_SPHERE == i) {
-			leds[i] = blend(currentColor1, colors[circle+1][0], colorBlendActive);
-			leds[i+1] = blend(currentColor2, colors[circle+1][1], colorBlendActive);
-			leds[i+2] = blend(currentColor3, colors[circle+1][2], colorBlendActive);
-			if(colorBlendActive < 252) colorBlendActive += 6;
-			else if(shift % 3 == 0 && colorBlend == 5) colorBlendActive += 3;
-		} 
-		else {
-		if(i < activeSpheres * LEDS_PER_SPHERE) j = 1;
-		leds[i] = blend(colors[circle+j][shift%3], colors[circle+j][(shift+1)%3], colorBlend);
-		leds[i] = blend(leds[i], CRGB::Black, j == 1 ? 0 : INACTIVE_BRIGHTNESS_DIFFERENCE);
-		leds[i+1] = blend(colors[circle+j][(shift+1)%3], colors[circle+j][(shift+2)%3], colorBlend);
-		leds[i+1] = blend(leds[i+1], CRGB::Black, j == 1 ? 0 : INACTIVE_BRIGHTNESS_DIFFERENCE);
-		leds[i+2] = blend(colors[circle+j][(shift+2)%3], colors[circle+j][shift%3], colorBlend);
-		leds[i+2] = blend(leds[i+2], CRGB::Black, j == 1 ? 0 : INACTIVE_BRIGHTNESS_DIFFERENCE);
-		}
-	}
-	FastLED.show();
-	if(colorBlend == 255) {
-		shift++;
-		colorBlend = 0;
-	}
-}
-
-void checkButton() {
-	if(millis() - previousPress > 250 && digitalRead(BUTTON_PIN)){
-		if(autoMode) {
-			autoMode = false;
-			changeBrightness(AUTO_BRIGHTNESS, MANUAL_BRIGHTNESS);
-			reset();
-		}
-		else newSphere();
-		previousPress = millis();
+	for (int sphere = 0; sphere < NUM_SPHERES; sphere++) {
+		updateSphereParameters(sphere, colorBlend[sphere], shift[sphere], true);
+		updateSphere(sphere, leds, mainColors, isActive(sphere), circle,
+					 shift[sphere], colorBlend[sphere]);
+		changeSphereBrightness(sphere, isActive(sphere));
+		changeTransitionBrightness(sphere);
 	}
 }
 
 void fireAnimation() {
-	fireColorBlend += 5;
-	leds[NUM_LEDS-LEDS_PER_SPHERE] = blend(fireColors[fireShift%3], fireColors[(fireShift+1)%3], fireColorBlend);
-	leds[NUM_LEDS-LEDS_PER_SPHERE+1] = blend(fireColors[(fireShift+1)%3], fireColors[(fireShift+2)%3], fireColorBlend);
-	leds[NUM_LEDS-LEDS_PER_SPHERE+2] = blend(fireColors[(fireShift+2)%3], fireColors[fireShift%3], fireColorBlend);
-	if(fireColorBlend == 255) {
-		fireShift++;
-		fireColorBlend = 0;
-	}
+	updateSphereParameters(NUM_SPHERES, fireColorBlend, fireShift, false);
+	updateSphere(NUM_SPHERES, leds, fireColors, 0, 0, fireShift,
+				 fireColorBlend);
 }
 
-void finalAnimation() {
-	for(int i = 0; i < NUM_LEDS; i++) {
-		leds[i] = CRGB::White;
-		FastLED.show();
-		delay(20);
-	}
-	blackout();
-	startup();
-}
+void changeSphereBrightness(int sphere, int isActive) {
+	if (isActive == 1) {
+		int position = activeSpheres - sphere + 1;
+		int brightGradient = 255 - ((255 - (INACTIVE_BRIGHTNESS + 30)) /
+									NUM_PEARLS_IN_GRADIENT) *
+									   position;
 
-void startup() {
-	fireAnimation();
-	for(int i = 0; i < 255; i++) {
-		for(int j = 0; j < NUM_LEDS - LEDS_PER_SPHERE; j += LEDS_PER_SPHERE) {
-			leds[j] = blend(CRGB::Black, colors[circle][0], i);
-			leds[j] = blend(leds[j], CRGB::Black, INACTIVE_BRIGHTNESS_DIFFERENCE);
-			leds[j+1] = blend(CRGB::Black, colors[circle][1], i);
-			leds[j+1] = blend(leds[j+1], CRGB::Black, INACTIVE_BRIGHTNESS_DIFFERENCE);
-			leds[j+2] = blend(CRGB::Black, colors[circle][2], i);
-			leds[j+2] = blend(leds[j+2], CRGB::Black, INACTIVE_BRIGHTNESS_DIFFERENCE);
-		}
-		FastLED.show();
-		delay(5);
+		if (position < NUM_PEARLS_IN_GRADIENT &&
+			sphereBrightness[sphere] < brightGradient)
+			sphereBrightness[sphere] += 1;
+		else if (position < NUM_PEARLS_IN_GRADIENT &&
+				 sphereBrightness[sphere] > brightGradient)
+			sphereBrightness[sphere] -= 1;
+		else if (position >= NUM_PEARLS_IN_GRADIENT &&
+				 sphereBrightness[sphere] > INACTIVE_BRIGHTNESS + 30)
+			sphereBrightness[sphere] -= 1;
+	} else if (isActive == 0 && sphereBrightness[sphere] > INACTIVE_BRIGHTNESS)
+		sphereBrightness[sphere] -= INACTIVE_FADE_OUT_SPEED;
+
+	int sphereIndex = sphere * LEDS_PER_SPHERE;
+	for (int i = 0; i < LEDS_PER_SPHERE; i++) {
+		leds[sphereIndex + i] =
+			blend(CRGB::Black, leds[sphereIndex + i], sphereBrightness[sphere]);
 	}
 }
 
 void newSphere() {
 	activeSpheres++;
 
-	currentColor1 = leds[(activeSpheres-1) * LEDS_PER_SPHERE];
-	currentColor2 = leds[(activeSpheres-1) * LEDS_PER_SPHERE+1];
-	currentColor3 = leds[(activeSpheres-1) * LEDS_PER_SPHERE+2];
-
-	colorBlendActive = 0;
-
-	if(activeSpheres == NUM_SPHERES + 1) {
-		activeSpheres = 1;
-		circle++;
-		currentColor1 = leds[0];
-		currentColor2 = leds[1];
-		currentColor3 = leds[2];
-		smoothBrightness();
-		if(circle == 8) reset();
+	if (activeSpheres == NUM_SPHERES + 1) {
+		if (autoMode) {
+			reset = true;
+			previousCircle = millis();
+		} else if (circle + 2 == NUM_CIRCLES)
+			reset = true;
+		else {
+			activeSpheres = 0;
+			circle++;
+			buttonDescend = true;
+		}
+	} else {
+		transitionBrightness[activeSpheres - 1] = 255;
+		transition[activeSpheres - 1] = true;
+		descending[activeSpheres - 1] = true;
 	}
 }
 
 void autoplay() {
-	if(millis() - previousSphere > NEW_SPHERE_PERIOD) {
+	if (millis() - previousSphere > NEW_SPHERE_PERIOD && !reset) {
 		newSphere();
 		previousSphere = millis();
 	}
 }
 
-void reset() {
-	shift = 0;
-	colorBlend = 0;
-	circle = 0;
-	activeSpheres = 0;
-	finalAnimation();
-}
-
-void blackout() {
-	for(int i = 0; i < NUM_LEDS; i++) {
-		leds[i] = CRGB::Black;
-		FastLED.show();
-		delay(20);
-	}
-}
-
-void changeBrightness(int currentBrightness, int finalBrightness) {
-	if(currentBrightness < finalBrightness) {
-		while(currentBrightness != finalBrightness) {
-			currentBrightness++;
-			FastLED.setBrightness(currentBrightness);
-			FastLED.show();
-			delay(10);
+void changeGlobalBrightness(int step) {
+	if (reset) {
+		if (globalBrightness > 0)
+			globalBrightness -= RESET_FADE_OUT_SPEED;
+		if (globalBrightness <= 0) {
+			if (globalBrightness < 0)
+				globalBrightness = 0;
+			reset = false;
+			activeSpheres = 0;
+			if (autoMode)
+				circle = 0;
+			else
+				circle = 2;
+		}
+	} else {
+		if (autoMode && globalBrightness != AUTO_BRIGHTNESS) {
+			if (globalBrightness > AUTO_BRIGHTNESS)
+				globalBrightness -= step;
+			else if (globalBrightness < AUTO_BRIGHTNESS)
+				globalBrightness += step;
+		}
+		if (!autoMode && globalBrightness != MANUAL_BRIGHTNESS) {
+			if (globalBrightness > MANUAL_BRIGHTNESS)
+				globalBrightness -= step;
+			else if (globalBrightness < MANUAL_BRIGHTNESS)
+				globalBrightness += step;
 		}
 	}
-	else {
-		while(currentBrightness != finalBrightness) {
-			currentBrightness--;
-			FastLED.setBrightness(currentBrightness);
-			FastLED.show();
-			delay(10);
+	FastLED.setBrightness(globalBrightness);
+}
+
+void changeTransitionBrightness(int sphere) {
+	int index = sphere * LEDS_PER_SPHERE;
+	if (transition[sphere]) {
+		if (descending[sphere]) {
+			transitionBrightness[sphere] -= TRANSITION_FADE_OUT_SPEED;
+			if (transitionBrightness[sphere] <= 0) {
+				descending[sphere] = false;
+				if (transitionBrightness[sphere] < 0)
+					transitionBrightness[sphere] = 0;
+			}
+		} else {
+			transitionBrightness[sphere] += TRANSITION_FADE_IN_SPEED;
+			if (transitionBrightness[sphere] >= 255) {
+				transition[sphere] = false;
+				if (transitionBrightness[sphere] > 255)
+					transitionBrightness[sphere] = 255;
+			}
+		}
+
+		for (int i = 0; i < LEDS_PER_SPHERE; i++) {
+			leds[index + i] = blend(CRGB::Black, leds[index + i],
+									transitionBrightness[sphere]);
 		}
 	}
 }
 
-void smoothBrightness() {
-	for(int i = 0; i < INACTIVE_BRIGHTNESS_DIFFERENCE; i++) {
-		for(int k = 0; k < NUM_LEDS - LEDS_PER_SPHERE; k += 3) {
-			leds[k] = blend(currentColor1, CRGB::Black, i);
-			leds[k+1] = blend(currentColor2, CRGB::Black, i);
-			leds[k+2] = blend(currentColor3, CRGB::Black, i);
-		}
-		FastLED.show();
-		delay(5);
+void checkButton() {
+	bool buttonState = !digitalRead(BUTTON_PIN);
+	if (millis() - previousActivation > 250 && lastButtonState &&
+		!buttonState && millis() - previousPress < 5000) {
+		if (autoMode) {
+			autoMode = false;
+			reset = true;
+		} else if (audioMode) {
+			audioMode = false;
+			autoMode = false;
+			globalBrightness = audioBrightness;
+			reset = true;
+		} else if (!reset)
+			newSphere();
+		previousActivation = millis();
 	}
+	if (!buttonState && !lastButtonState)
+		previousPress = millis();
+	if (millis() - previousPress > HOLD_TIME_FOR_RESET)
+		reset = true;
+	if (millis() - previousPress > HOLD_TIME_FOR_AUDIO_MODE && !audioMode) {
+		audioMode = true;
+		audioBrightness = 0;
+		autoMode = false;
+		circle = 0;
+	}
+
+	lastButtonState = buttonState;
+}
+
+void buttonAnimation() {
+	int next = buttonDescend ? 0 : 1;
+
+	updateSphereParameters(-1, buttonBlend, buttonShift, false);
+	updateSphere(0, button_leds, mainColors, next, circle, buttonShift,
+				 buttonBlend);
+
+	if (buttonDescend) {
+		buttonBrightness -= BUTTON_FADE_SPEED;
+		if (buttonBrightness <= 0)
+			buttonDescend = false;
+	} else if (buttonBrightness < 255) {
+		buttonBrightness += BUTTON_FADE_SPEED;
+		if (buttonBrightness > 255)
+			buttonBrightness = 255;
+	}
+
+	for (int i = 0; i < NUM_BUTTON_LEDS; i++) {
+		button_leds[i] = blend(CRGB::Black, button_leds[i], buttonBrightness);
+	}
+}
+
+void initStates() {
+	for (int i = 0; i < NUM_SPHERES; i++) {
+		colorBlend[i] = random(0, 32) * 8;
+		shift[i] = random(0, 3);
+		sphereBrightness[i] = INACTIVE_BRIGHTNESS;
+		transition[i] = false;
+		descending[i] = false;
+	}
+}
+
+void updateSphereParameters(int sphere, int &colorBlend, int &shift,
+							bool main) {
+	int inc;
+
+	if (reset)
+		inc = BASE_TRANSITION_VALUE;
+	else
+		inc = autoMode ? BASE_TRANSITION_VALUE
+					   : BASE_TRANSITION_VALUE * MANUAL_MODE_TRANSITION_MULT;
+
+	if (main && sphere < activeSpheres && !descending[sphere])
+		inc *= 2;
+	colorBlend += inc;
+	if (colorBlend > 255) {
+		colorBlend = 0;
+		shift++;
+		if (shift == 3)
+			shift = 0;
+	}
+}
+
+void updateSphere(int sphere, CRGB leds[], CRGB colorPalete[][3], int isActive,
+				  int crcl, int shift, int clrBlend) {
+	int sphereIndex = sphere * LEDS_PER_SPHERE;
+	for (int i = 0; i < 3; i++) {
+		CRGB color1 = colorPalete[crcl + isActive][(shift + i) % 3];
+		CRGB color2 = colorPalete[crcl + isActive][(shift + i + 1) % 3];
+
+		leds[sphereIndex + (i * 3)] = blend(color1, color2, clrBlend);
+		leds[sphereIndex + (i * 3) + 1] = leds[sphereIndex + (i * 3)];
+		if (i != 2)
+			leds[sphereIndex + (i * 3) + 2] = leds[sphereIndex + (i * 3)];
+	}
+}
+
+int isActive(int sphere) {
+	int isActive = 0;
+	if (sphere < activeSpheres && !descending[sphere])
+		isActive = 1;
+	return isActive;
+}
+
+void analizeAudio() {
+	for (int i = 0; i < FHT_N; i++) {
+		fht_input[i] = analogRead(AUX_PIN);
+	}
+
+	fht_window();
+	fht_reorder();
+	fht_run();
+	fht_mag_log();
+}
+
+void audioAnimation() {
+	analizeAudio();
+	if (audioBrightness < AUDIO_MODE_MIN_BRIGHTNESS)
+		audioBrightness += 10;
+	else if (fht_log_out[2] > 90) {
+		audioBrightness = AUDIO_MODE_MAX_BRIGHTNESS;
+	}
+	if (audioBrightness > AUDIO_MODE_MIN_BRIGHTNESS)
+		audioBrightness -= 10;
+	FastLED.setBrightness(audioBrightness);
 }
