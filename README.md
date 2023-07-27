@@ -2,7 +2,7 @@
 This is the code for the Pearl Rosary installation art project.
 
 ## Requirements
-[FastLed library](https://github.com/FastLED/FastLED) is required for this program. Install it via your library manager.
+[FastLed](https://github.com/FastLED/FastLED) and [ArduinoFHT](https://github.com/Evg33/ArduinoFHT) libraries are required for this program. Install them via your library manager.
 
 ## How to use
 If you are using Arduino IDE, then change `.cpp` extention to `.ino`.
