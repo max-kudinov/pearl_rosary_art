@@ -153,7 +153,6 @@ void setup() {
 	FastLED.addLeds<WS2811, STRIP_PIN, GRB>(leds, NUM_LEDS);
 	FastLED.addLeds<WS2811, BUTTON_STRIP_PIN, GRB>(button_leds,
 												   NUM_BUTTON_LEDS);
-	pinMode(BUTTON_PIN, INPUT_PULLUP);
 }
 
 void loop() {
@@ -318,7 +317,7 @@ void changeTransitionBrightness(int sphere) {
 }
 
 void checkButton() {
-	bool buttonState = !digitalRead(BUTTON_PIN);
+	bool buttonState = digitalRead(BUTTON_PIN);
 	if (millis() - previousActivation > 250 && lastButtonState &&
 		!buttonState && millis() - previousPress < 5000) {
 		if (autoMode) {
