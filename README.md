@@ -10,9 +10,9 @@ This is an interactive art installation, the button in the middle let's you
 change a color of each sphere one by one.
 When all of the spheres are the same color, you switch to the next circle. 
 When you reach the last circle, everything resets.
-You can hold the button for 3 second to reset manually. 
+You can hold the button for 3 seconds to reset manually. 
 If you keep holding it after reset for 3 more seconds, you enter
-audio visualisation mode, where sphere change their brightness based on the level of base in the music. 
+audio visualisation mode, where the spheres change their brightness based on the level of bass in the music. 
 Audio signal comes from the AUX cable.
 To exit audio mode, just press the button once.
 
